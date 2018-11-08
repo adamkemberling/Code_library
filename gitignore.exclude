@@ -5,3 +5,4 @@
 *redgrouper_longline_dlnorm.R
 *8schools.stan
 *.gitignore
+*.exclude

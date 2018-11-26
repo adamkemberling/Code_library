@@ -54,7 +54,7 @@ ggplot() +
   geom_sf(data = pontchbox, fill = "skyblue1", color = NA) +
   geom_sf(data = mex_adam, fill = "antiquewhite1") +                                                   
   geom_sf(data = usa_adam, fill = "antiquewhite1") +
-  coord_sf(xlim = c(-97.20, -81), ylim = c(24.35, 31.5)) +
+  coord_sf(xlim = c(-97.15, -80.75), ylim = c(24.35, 31.5)) +
   xlab("") + ylab("") +
   #ggtitle("Map Template for SEAMAP plots") +
   scale_fill_manual("", values = c(bathyp$cont_col)) +
@@ -88,15 +88,130 @@ ggplot() +
   geom_sf(data = mex_adam, fill = "antiquewhite1") +                                                   
   geom_sf(data = usa_adam, fill = "antiquewhite1") +
   geom_sf(data = zones2, aes(), fill = NA) +
-  geom_text(data = zones2, aes(X, Y, label = ID), size = 3, fontface = "bold", 
+  geom_text(data = zones2, aes(X, Y, label = ID), 
+            size = 3, 
+            fontface = "bold", 
             nudge_y = zones2$nudge_y,
             nudge_x = zones2$nudge_x) +
-  coord_sf(xlim = c(-97, -81), ylim = c(24.35, 31.5)) +
+  coord_sf(xlim = c(-97.15, -80.75), 
+           ylim = c(24.35, 31.5)) +
   scale_fill_manual("", values = c(bathyp$cont_col)) +
   xlab("") + ylab("") +
   theme(panel.grid.major = element_line(colour = gray(0.85), 
                                         linetype = "dashed", 
                                         size = 0.5), 
-        panel.background = element_rect(fill = NA),                             #aliceblue is good for color                   
+        panel.background = element_rect(fill = NA),                                                
         panel.border = element_rect(fill = NA),
         legend.position = "bottom")
+
+
+
+
+
+
+
+
+
+
+################  Template 3 - Species Distribution maps  #############
+rsnap <- read_csv("D:/ReefFish/Red_Snapper/index.Lutjanus_campechanus.csv", guess_max = 10000, col_types = cols())
+rsnap <- rsnap %>% rename(mincount = LUTJANUS_CAMPECHANUS)
+
+snap_sf <- st_as_sf(rsnap, 
+                  coords = c("sta_lon", "sta_lat"), 
+                  crs = 4326, 
+                  agr = "constant")
+
+snap_sf <- snap_sf %>% filter(mincount > 0)
+
+
+#Bubble plots
+ggplot() + 
+  geom_sf(data = bathyp, aes(fill = RANGE)) +
+  geom_sf(data = pontchbox, fill = "skyblue1", color = NA) +
+  geom_sf(data = mex_adam, fill = "antiquewhite1") +                                                   
+  geom_sf(data = usa_adam, fill = "antiquewhite1") +
+  geom_sf(data = snap_sf, 
+          size = sqrt(snap_sf$mincount),
+          alpha = 0.75) +
+  coord_sf(xlim = c(-97.15, -80.75), 
+           ylim = c(24.35, 31.5)) +
+  scale_fill_manual("", values = c(bathyp$cont_col)) +
+  xlab("") + ylab("") +
+  theme(panel.grid.major = element_line(colour = gray(0.85), 
+                                        linetype = "dashed", 
+                                        size = 0.5), 
+        panel.background = element_rect(fill = NA),                                                
+        panel.border = element_rect(fill = NA),
+        legend.position = "bottom")
+
+
+
+
+
+#Sampling Effort Map - Number of Stations
+ggplot() + 
+  geom_sf(data = mex_adam, fill = "antiquewhite1") +                                                   
+  geom_sf(data = usa_adam, fill = "antiquewhite1") +
+  stat_binhex(aes(x = sta_lon, y = sta_lat,
+                  fill = cut(..count.., c(0,25,50,100,200,500,1000, Inf))),
+              colour = gray(.6),
+              bins = 30, 
+              alpha = 0.75,
+              data = rsnap) +
+  scale_fill_brewer("",
+                    palette = "OrRd",
+                    labels = c("<25", "25-50", "50-100", 
+                               "100-200","200-500", "500-1000", ">1000")) +
+  coord_sf(xlim = c(-97.15, -80.75), 
+           ylim = c(24.35, 31.5)) +
+  xlab("") + ylab("") + ggtitle("Number of Stations") +
+  theme(panel.grid.major = element_line(colour = gray(0.85), 
+                                        linetype = "dashed", 
+                                        size = 0.5), 
+        panel.background = element_rect(fill = "aliceblue"),                                                
+        panel.border = element_rect(fill = NA),
+        legend.position = "bottom")
+
+
+
+
+
+#Average CPUE/mincount map - Hex or Rectangle
+ggplot() + 
+  geom_sf(data = mex_adam, fill = "antiquewhite1") +                                                   
+  geom_sf(data = usa_adam, fill = "antiquewhite1") + 
+  stat_summary_hex(aes(x = sta_lon, y = sta_lat, z = mincount),
+                   fun = mean,
+                   colour = gray(.6),
+                   bins = 30,
+                   alpha = 0.75,
+                   data = rsnap) +
+  # stat_summary_2d(aes(x = sta_lon, y = sta_lat, z = mincount),
+  #                  fun = mean,
+  #                  colour = gray(.6),
+  #                  bins = 40, 
+  #                  alpha = 0.75,
+  #                  data = rsnap) +
+  coord_sf(xlim = c(-97.15, -80.75), 
+           ylim = c(24.35, 31.5)) +
+  xlab("") + ylab("") + ggtitle("Average Mincount/CPUE") + 
+  scale_fill_gradient("",
+                    low = "white", high = "darkred") +
+  theme(panel.grid.major = element_line(colour = gray(0.85), 
+                                        linetype = "dashed", 
+                                        size = 0.5), 
+        panel.background = element_rect(fill = "aliceblue"),                                                
+        panel.border = element_rect(fill = NA),
+        legend.position = "bottom")
+
+#Issue 2, if you want the depth contours as well, they need to be added as a second grob
+
+
+
+
+
+
+#Choropleths using stat zone
+rsnap %>% group_by(seamapstratum) %>% summarise()
+

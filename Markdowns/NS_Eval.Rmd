@@ -1,0 +1,428 @@
+---
+title: "Non Standard Evaluations"
+author: "Adam A. Kemberling"
+date: "2/5/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Non Standard evaluation
+
+This whole section is directly from [Non-standard evaluation](http://adv-r.had.co.nz/Computing-on-the-language.html) from advanced R by  Hadley Wickham.
+
+**Example of what NSE is**
+
+```{r}
+x <- seq(0, 2 * pi, length = 100)
+sinx <- sin(x)
+plot(x, sinx, type = "l")
+```
+
+How does the plot know to label the axes with x or sinx?
+
+Look at the labels on the axes. How did R know that the variable on the x axis is called x and the variable on the y axis is called sinx? In most programming languages, you can only access the values of a function’s arguments. In R, you can also access the code used to compute them. This makes it possible to evaluate code in non-standard ways: to use what is known as **non-standard evaluation**, or NSE for short. NSE is particularly useful for functions when doing interactive data analysis because it can dramatically reduce the amount of typing.
+
+## Capturing Expressions
+
+`substitute()` makes non-standard evaluation possible. It looks at a function argument and instead of seeing the value, it sees the code used to compute the value:
+
+```{r}
+f <- function(x) {
+  substitute(x)
+}
+f(1:10)
+
+x <- 10
+f(x)
+
+y <- 13
+f(x + y^2)
+
+```
+
+For now, we won't worry about exactly what substitute() returns (that's the topic of the following chapter), but we'll call it an expression.
+
+substitute() works because function arguments are represented by a special type of object called a promise. A promise captures the expression needed to compute the value and the environment in which to compute it. You're not normally aware of promises because the first time you access a promise its code is evaluated in its environment, yielding a value.
+
+substitute() is often paired with deparse(). That function takes the result of substitute(), an expression, and turns it into a character vector.
+
+```{r}
+g <- function(x) deparse(substitute(x))
+g(1:10)
+
+g(x)
+
+g(x + y^2)
+
+```
+
+There are a lot of functions in Base R that use these ideas. Some use them to avoid quotes:
+
+```{r, eval = FALSE}
+library(ggplot2)
+# the same as
+library("ggplot2")
+```
+
+Other functions, like plot.default(), use them to provide default labels. data.frame() labels variables with the expression used to compute them:
+
+```{r}
+x <- 1:4
+y <- letters[1:4]
+names(data.frame(x, y))
+```
+
+
+## Non-standard evaluation in subset
+
+subset() is special because it implements different scoping rules: the expressions a >= 4 or b == c are evaluated in the specified data frame rather than in the current or global environments. This is the essence of non-standard evaluation.
+
+```{r}
+sample_df <- data.frame(a = 1:5, b = 5:1, c = c(5, 3, 1, 4, 1))
+
+subset(sample_df, a >= 4)
+# equivalent to:
+# sample_df[sample_df$a >= 4, ]
+```
+
+
+How does subset() work? We've already seen how to capture an argument's expression rather than its result, so we just need to figure out how to evaluate that expression in the right context. Specifically, we want x to be interpreted as sample_df$x, not globalenv()$x. To do this, we need eval(). This function takes an expression and evaluates it in the specified environment.
+
+Before we can explore eval(), we need one more useful function: quote(). It captures an unevaluated expression like substitute(), but doesn't do any of the advanced transformations that can make substitute() confusing. quote() always returns its input as is:
+
+```{r}
+quote(1:10)
+
+quote(x)
+
+quote(x + y^2)
+
+```
+
+We need quote() to experiment with eval() because eval()'s first argument is an expression. So if you only provide one argument, it will evaluate the expression in the current environment. This makes eval(quote(x)) exactly equivalent to x, regardless of what x is:
+
+
+```{r}
+eval(quote(x <- 1))
+eval(quote(x))
+
+eval(quote(y))
+```
+
+quote() and eval() are opposites. In the example below, each eval() peels off one layer of quote()'s.
+
+```{r}
+quote(2 + 2)
+
+eval(quote(2 + 2))
+```
+
+eval()'s second argument specifies the environment in which the code is executed:
+
+```{r}
+x <- 10
+eval(quote(x))
+
+e <- new.env()
+e$x <- 20
+eval(quote(x), e)
+```
+
+Because lists and data frames bind names to values in a similar way to environments, eval()'s second argument need not be limited to an environment: it can also be a list or a data frame.
+
+```{r}
+eval(quote(x), list(x = 30))
+
+eval(quote(x), data.frame(x = 40))
+```
+
+This gives us one part of subset():
+
+```{r}
+eval(quote(a >= 4), sample_df)
+
+#or
+
+eval(quote(b == c), sample_df)
+```
+
+A common mistake when using eval() is to forget to quote the first argument. Compare the results below:
+
+```{r}
+a <- 10
+eval(quote(a), sample_df)
+
+eval(a, sample_df)
+```
+
+We can use eval() and substitute() to write subset(). We first capture the call representing the condition, then we evaluate it in the context of the data frame and, finally, we use the result for subsetting:
+
+
+
+```{r}
+subset2 <- function(x, condition) {
+  condition_call <- substitute(condition)
+  r <- eval(condition_call, x)
+  x[r, ]
+}
+subset2(sample_df, a >= 4)
+```
+
+
+### Scoping issues
+
+It certainly looks like our subset2() function works. But since we're working with expressions instead of values, we need to test things more extensively. For example, the following applications of subset2() should all return the same value because the only difference between them is the name of a variable:
+
+```{r}
+y <- 4
+x <- 4
+condition <- 4
+condition_call <- 4
+
+subset2(sample_df, a == 4)
+
+subset2(sample_df, a == y)
+
+subset2(sample_df, a == x)
+
+subset2(sample_df, a == condition)
+```
+
+
+What went wrong? You can get a hint from the variable names I've chosen: they are all names of variables defined inside subset2(). If eval() can't find the variable inside the data frame (its second argument), it looks in the environment of subset2(). That's obviously not what we want, so we need some way to tell eval() where to look if it can't find the variables in the data frame.
+
+The key is the third argument to eval(): enclos. This allows us to specify a parent (or enclosing) environment for objects that don't have one (like lists and data frames). If the binding is not found in env, eval() will next look in enclos, and then in the parents of enclos. enclos is ignored if env is a real environment. We want to look for x in the environment from which subset2() was called. In R terminology this is called the parent frame and is accessed with parent.frame(). This is an example of dynamic scope: the values come from the location where the function was called, not where it was defined.
+
+With this modification our function now works:
+
+```{r}
+subset2 <- function(x, condition) {
+  condition_call <- substitute(condition)
+  r <- eval(condition_call, x, parent.frame())
+  x[r, ]
+}
+
+x <- 4
+subset2(sample_df, a == x)
+```
+
+Using enclos is just a shortcut for converting a list or data frame to an environment. We can get the same behaviour by using list2env(). It turns a list into an environment with an explicit parent:
+
+
+```{r}
+subset2a <- function(x, condition) {
+  condition_call <- substitute(condition)
+  env <- list2env(x, parent = parent.frame())
+  r <- eval(condition_call, env)
+  x[r, ]
+}
+
+x <- 5
+subset2a(sample_df, a == x)
+```
+
+
+
+
+
+
+
+
+
+
+## Tidy eval functions
+
+1. simple wrapper function
+
+*create a function that accepts a value that is passed to a specific dplyr operation*
+
+The following dplyr operation is fixed to only return the mean of arrtime. The desire is to create a function that returns the mean of any variable passed to it.
+
+```{r, messge = FALSE, warning = FALSE}
+library(tidyverse)
+library(nycflights13)
+
+flights %>% 
+  summarise(mean  = mean(arr_time, na.rm = TRUE))
+```
+
+Using the `rlang` library we will create a function that takes a single argument and returns the result of `enquo()`. This is the first step in making the function more general.
+
+```{r}
+library(rlang)
+
+my_mean <- function(x){
+  x <- enquo(x)
+  x
+}
+
+my_mean(mpg)
+```
+
+
+Add the `summarise()` operation, and replace *arr_time* with `!! x` (bang bang) x
+
+```{r}
+my_mean <- function(x){
+  x <- enquo(x)
+  flights %>%
+    summarise(mean = mean(!! x, na.rm = TRUE))
+}
+```
+
+Test the funciton with dep_time
+
+```{r}
+my_mean(dep_time)
+```
+
+Right now the calculation works, but it doesn't provide context. The mean of what?
+
+Make the function use what is passed to the *x* arguent as the name of the calculation. Replace `mean = ` with `!! quo_name(x) := `
+
+```{r}
+my_mean <- function(x){
+  x <- enquo(x)
+  flights %>%
+    summarise(!! quo_name(x) := mean(!! x, na.rm = TRUE))
+  
+}
+```
+
+
+Test the function again with arrtime. The name of the variable should now by arrtime
+
+```{r}
+my_mean(arr_time)
+```
+
+Test the function with a formula: arr_time + dep_time.
+
+```{r}
+my_mean(arr_time + dep_time)
+```
+
+Make the function generic by adding a .data argument and replacing flights with .data
+
+```{r}
+my_mean <- function(.data, x){
+  x <- enquo(x)
+  .data %>%
+    summarise(!! quo_name(x) := mean(!! x, na.rm = TRUE))
+  
+}
+```
+
+The function now behaves more like a dplyr verb. Start with flights and pipe into the function.
+
+```{r}
+flights %>%
+  my_mean(arr_time)
+```
+
+Test the function with a different data set. Use mtcars and mpg as the x argument.
+
+```{r}
+mtcars %>% 
+  my_mean(mpg)
+```
+
+
+Clean up the function by removing the pipe
+
+```{r}
+my_mean <- function(.data, x){
+  x <- enquo(x)
+  summarise(
+    .data, 
+    !! quo_name(x) := mean(!! x, na.rm = TRUE)
+  )
+}
+```
+
+Test again, no visible changes should be there for the results
+
+```{r}
+mtcars %>%
+  my_mean(mpg)
+```
+
+## Multiple variables
+
+*Create functions that handle a variable number of arguments. The goal of the exercise is to create an “anti-select()” function.*
+
+1. Use … as the second argument of a function called de_select(). Inside the function use enquos() to parse it
+
+```{r}
+de_select <- function(.data, ...){
+  vars <- enquos(...)
+  vars
+}
+```
+
+Test the function using airports
+
+```{r}
+mtcars %>%
+  de_select(cyl, mpg)
+```
+
+Add a step to the function that iterates through each quosure and prefixes a minus sign to tell select() to drop that specific field. Use map() for the iteration, and expr() to create the prefixed expression.
+
+```{r}
+de_select <- function(.data, ...){
+  vars <- enquos(...)
+  vars <- map(vars, ~ expr(- !! .x))
+  vars
+}
+```
+
+Run the same test to view the new results
+
+```{r}
+mtcars %>%
+  de_select(cyl, mpg)
+```
+
+
+Add the select() step. Use !!! to parse the vars variable inside select()
+
+```{r}
+de_select <- function(.data, ...){
+  vars <- enquos(...)
+  vars <- map(vars, ~ expr(- !! .x))
+  select(
+    .data,
+    !!! vars
+  )
+}
+```
+
+Run the test again, this time the operation will take place.
+
+```{r}
+mtcars %>%
+  de_select(cyl, mpg)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

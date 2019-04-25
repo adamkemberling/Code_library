@@ -1,0 +1,576 @@
+---
+title: "Tidyverse Workshop"
+author: "Adam A Kemberling"
+date: "July 08, 2018"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: true
+    print_df: tibble
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Welcome to the Tidyverse
+
+  This markdown will showcase the suite of R packages known collectively as the "Tidyverse". Unlike other packages, the tidyverse packages were created to function well together, and share a rather opinionated view on coding syntax and structure as well as data structure.
+  
+One thing you may notice right off the bat, is that the tidyverse come wrapped up conveniently as one package. Installing 'tidyverse' from CRAN will install all of the core packages, and which are then all loaded via one library() call
+
+```{r installation, message=FALSE}
+#install.packages('tidyverse')
+library(tidyverse)
+```
+
+###### Tidy Data
+
+Tidy data is a somewhat opinionated take on how data should be organized within a dataframe/spreadsheet. The main tenants of these beliefs are:
+
+-Each variable must have its own column.     
+-Each observation must have its own row.     
+-Each value must have its own cell.     
+
+Let's take a look.
+
+```{r table1,echo = F, message=FALSE}
+table1
+```
+
+
+This table is tidy.
+
+
+These tables contain the same information, but are organized differently.
+
+```{r table2, echo = F, message=FALSE}
+table2
+```
+
+One might even separate the table into two tables, one for case and the other for population counts:
+
+```{r table4,echo = F, message=FALSE}
+table4a
+table4b
+```
+
+
+These tables are not tidy. Why not, and why care?
+
+#### Consistency matters
+* Having a consistent data management strategy will allow you to focus on tools that work
+* Having data in columns is bread and butter for R's vectorized nature
+* All the tidyverse packages were designed to work with (relatively) tidy data. The upfront work is worth headaches later.
+
+
+
+# Core Tidyverse Packages:
+
+There are 8 core packages that install with the tidyverse package, these are the main workhorses, but there are lots of useful packages associated with the tidyverse as well.
+
+we'll start with the mundane but necessary and work towards the more exciting.
+
+## 1. readr
+
+All this package cares about is bringing in flat files (csv, fwf, apachelog) into the r workspace.
+
+
+The syntax is the same as base r's read.csv() function, but readr's functions will help avoid some of the formatting headaches you might have experienced bring in you own data.
+
+```{r readr, message=FALSE, eval=FALSE}
+sciency_df <- read_csv("awesome_spotless_ecology_data.csv")
+
+```
+
+#### Package highlights
+* ~10x faster than base R equivelants, come with progress bars
+* imported data comes in as a tibble (next chapter)
+
+
+
+## 2. tibble
+
+Tibbles are just dataframes with a cuter name. They make you face your data upfront before issues arise later, and behave as would any other dataframe in r.
+
+Dataframes can all be converted to a tibble using as_tibble(), or you can create them from scratch using tibble(), or tribble() short for transposed tibble.
+
+```{r tibbles, message=FALSE, eval=FALSE}
+as_tibble(iris)
+
+tibble(
+  x = 1:5, 
+  y = 1, 
+  z = x ^ 2 + y
+)
+
+tribble(
+  ~x, ~y, ~z,
+  #--|--|----
+  "a", 2, 3.6,
+  "b", 1, 8.5
+)
+```
+
+
+If you are already familiar with data.frame(), note that tibble() does much less: it never changes the type of the inputs (e.g. it never converts strings to factors!), it never changes the names of variables, and it never creates row names.
+
+Its possible for a tibble to have column names that are not valid R variable names, aka non-syntactic names. For example, they might not start with a letter, or they might contain unusual characters like a space. To refer to these variables, you need to surround them with backticks, `
+
+```{r tibble column names, message=FALSE}
+tb <- tibble(
+  `:)` = "smile", 
+  ` ` = "space",
+  `2000` = "number"
+)
+tb
+```
+
+
+#### Package highlights
+* printing tibbles shows only top ten rows, w/ class structure for each column, think str()
+* Character vectors don't become factors, they don't use row names, or change your column names in slight insidious ways
+* They are more reproducible. Independent of operating system quirks.
+
+
+
+## 3. tidyr
+
+Tidyr's role in the tidyverse is to reshape data and make it nice and tidy.
+
+There are two fundamental verbs of data tidying:
+
+* gather() takes multiple columns, and gathers them into key-value pairs: it makes "wide" data longer.
+
+* spread(). takes two columns (key & value) and spreads in to multiple columns, it makes "long" data wider.
+
+
+These two main functions work to resolve problems where 1. a variable is spread across multiple columns, or 2. one observation might be scattered across multiple rows.
+
+
+#### Gathering
+
+A common problem is a dataset where some of the column names are not names of variables, but values of a variable. Take table4a: the column names 1999 and 2000 represent values of the year variable, and each row represents two observations, not one.
+
+```{r table41 again, echo=FALSE}
+table4a
+```
+
+
+To gather you need 3 parameters:
+* The set of columns that represent values (1999 & 2000)
+* The name for the variable, those values represent i.e. year (the key)
+* The name of the variable whos values are spread over the cells, 'cases', (called value)
+
+```{r gather1, warning=FALSE}
+table4a %>% 
+  gather(`1999`, `2000`, key = "year", value = "cases")
+```
+
+
+#### Spreading
+
+The opposite of gathering, take observations scattered across rows and make the data wider to consolidate.
+
+For example, take table2: an observation is a country in a year, but each observation is spread across two rows.
+```{r spread1, echo = FALSE}
+table2
+```
+
+
+To tidy this up, we first analyse the representation in similar way to gather(). This time, however, we only need two parameters:
+
+* The column that contains variable names, the key column. Here, it's type.
+* The column that contains values from multiple variables, the value column. Here it is count.
+
+```{r spread2, warning=FALSE}
+table2 %>%
+    spread(key = type, value = count)
+```
+
+
+
+tidyr also come with the seperate() and unite() functions:
+
+separate() - separates a column into two or more new columns at specific characters or at positions in a string
+
+unite() - combines multiple columns into a single column
+
+
+
+## 4. forcats
+
+The goal of the forcats package is to provide a suite of useful tools that solve common problems with factors.
+
+Factors are used to describe categorical variables with a fixed and known set of levels. You can create factors with the base factor() or readr::parse_factor():
+
+These become the most useful when doing any sort or analysis with factor levels you may need ordered in a way that isn't in the default alphabetical i.e. seasons. Particularly helpful when plotting.
+
+```{r forcats, warning= FALSE}
+x1 <- c("Dec", "Apr", "Jan", "Mar")
+month_levels <- c(
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+)
+
+factor(x1, month_levels)
+
+parse_factor(x1, month_levels)
+
+```
+
+
+The advantage of parse_factor() is that it will generate a warning if values of x are not valid levels:
+
+```{r forcats2, warning= FALSE}
+x2 <- c("Dec", "Apr", "Jam", "Mar")
+
+factor(x2, month_levels)
+
+parse_factor(x2, month_levels)
+```
+
+
+
+## 5. stringr
+
+The stringr package provide a cohesive set of functions designed to make working with strings as easy as possible.
+
+What is a string?
+```{r string1}
+string1 <- "This is a string"
+string2 <- 'If I want to include a "quote" inside a string, I use single quotes'
+```
+
+
+There are a handful of other special characters. The most common are "\n", newline, and "\t", tab, but you can see the complete list by requesting help on ": ?'"', or ?"'". You'll also sometimes see strings like "\u00b5", this is a way of writing non-English characters that works on all platforms
+
+
+###### stringr functions
+
+All stringr functions are intuitively named and start with str_ making them easy to remember.
+
+* str_length() - tells you the number of characters in a string
+* str_c() - to combine two or more strings
+* str_sub() - to extract parts of strings
+
+
+```{r stringr 2}
+str_length(c("a", "R for data science", NA))
+
+str_c("x", "y", sep = ", ")
+
+x <- c("Apple", "Banana", "Pear")
+str_sub(x, 1, 3)
+```
+
+
+## 6. dplyr ang magrittr
+
+dplyr is a workhorse for filtering, subsetting, summarising, and manipulating your datasets. This package is far and away one of the most useful on CRAN, and for a reason.
+
+But before, we dive into dplyr, its worth first introducing the pipe %>%.
+
+### The Pipe %>%
+
+Though actually part of the magrittr package, the pipe %>% can be used with many base r functions and most tidyverse functions. 
+
+paired with dply, piping helps get the most work done with as little effort/coding as possible.
+
+The point of the pipe is to help you write code in a way that is easier to read and understand. To see why the pipe is so useful, we're going to explore a number of ways of writing the same code.
+
+Let's use code to tell a story about a little bunny named Foo Foo:
+
+Little bunny Foo Foo
+Went hopping through the forest
+Scooping up the field mice
+And bopping them on the head
+
+This is a popular Children's poem that is accompanied by hand actions.
+
+We'll start by defining an object to represent little bunny Foo Foo:
+
+```{r foo foo, eval=FALSE}
+foo_foo <- little_bunny()
+```
+
+And we'll use a function for each key verb: hop(), scoop(), and bop(). Using this object and these verbs, there are (at least) four ways we could retell the story in code:
+
+1. Save each intermediate step as a new object.
+2. Overwrite the original object many times.
+3. Compose functions.
+4. Use the pipe.
+
+#### option 1. save each step
+
+```{r save each step, eval = FALSE}
+foo_foo_1 <- hop(foo_foo, through = forest)
+foo_foo_2 <- scoop(foo_foo_1, up = field_mice)
+foo_foo_3 <- bop(foo_foo_2, on = head)
+```
+
+* clutters environment qith intermediate steps
+* You have to carefully increment the suffix on each line. And not use the wrong one later
+
+#### option 2. overwrite the original
+
+```{ r overwrite original, eval = FALSE}
+foo_foo <- hop(foo_foo, through = forest)
+foo_foo <- scoop(foo_foo, up = field_mice)
+foo_foo <- bop(foo_foo, on = head)
+
+```
+
+* Painful to debug
+* The repetition of the object being transformed (we've written foo_foo six times!) obscures what's changing on each line.
+
+#### option 3. function composition
+
+```{r function composition, eval = FALSE}
+bop(
+  scoop(
+    hop(foo_foo, through = forest),
+    up = field_mice
+  ), 
+  on = head
+)
+```
+
+* Doing it this way it is unclear at a glance what is going on
+* Reads from the inside to the outside
+
+#### option 4. use the pipe %>%
+
+```{r use the pipe, eval=FALSE}
+
+foo_foo %>%
+  hop(through = forest) %>%
+  scoop(up = field_mice) %>%
+  bop(on = head)
+```
+
+* Tells the story of the object (foo_foo), using the functions as verbs
+* easy to read, easy to code, easy to debug, and doesn't clutter the environment
+
+### How pipes work
+
+The pipe works by performing a 'lexical transformation': behind the scenes, magrittr reassembles the code in the pipe to a form that works by overwriting an intermediate object. When you run a pipe like the one above, magrittr does something like this:
+
+
+```{r pipe work, eval = FALSE}
+my_pipe <- function(.) {
+  . <- hop(., through = forest)
+  . <- scoop(., up = field_mice)
+  bop(., on = head)
+}
+my_pipe(foo_foo)
+```
+
+### When not to pipe
+
+* If you are using more than one dataset. Pipes are inherently linear so they focus on whatever object you start with
+* If you're pipe exceeds 10 steps it might be worth breaking it up into meaningful smaller parts
+
+### Other pipe-like tools from magrittr
+
+**The "tee-pipe" - %T>%**
+
+%T>% works like %>% except that it returns the left-hand side instead of the right-hand side. Its called 'tee' because it's like a literal T-shaped pipe.
+
+```{r t pipe1, message=FALSE, warning=FALSE}
+library(magrittr)
+rnorm(100) %>%
+  matrix(ncol = 2) %>%
+  plot() %>%
+  str()
+```
+
+nothing is printed other than the plot
+
+```{r t pipe2}
+rnorm(100) %>%
+  matrix(ncol = 2) %T>%
+  plot() %>%
+  str()
+```
+
+
+
+**Reduce a piped dataframe to its vector components with - %$%**
+
+%$% Explodes out the variables in a data frame so that you can refer to them explicitly. This is useful when working with many functions in base R:
+```{r money pipe}
+mtcars %$%
+  cor(disp, mpg)
+```
+
+
+
+**Assign the left-hand side while piping - %<>%**
+
+One thing that is going to stick out when piping is how often you will be typing:
+
+> new.df <- new.df %>% ...
+
+To replace the assignment operator and type less, you can use %<>%
+
+> new.df %<>% ...
+
+Note: the carrot assignment tool is  very important part of R, and it may be worth the little extra typing to be sure that assignment only happens when you explicitly want it to.
+
+
+### Handling data with dplyr
+
+Now that we know how the pipe works its time to do some real work with dplyr:
+
+dplyr is great because its functions do exactly what they say they will, so your code could be read and understood by even non-coders.
+
+* mutate() - used to change/create new columns
+* filter() - select rows that meet a set condition
+* select() - subset by column names, or rearrange column names
+* group_by() - organise by values in a column, particularly useful for factor levels when followed by summarise()
+* summarise() - create and name desired summary statistics
+* arrange() - arrange dataframe by values in columns. Think sort and filter in excel without the select all nonsense and fear of altering the file
+* rename() - rename columns easily
+
+dplyr has a bunch of additional functions, and even a cheatsheet that explains how to use them here:     
+>https://www.rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf
+
+A few of the most useful in my opinion are the ones for handling relational data and combining data i.e. joins, unions, intersections, appending
+
+
+###### comparing dplyr to base R functions
+
+1. Actual workflow of mine, pre-dplyr
+
+```{r messy tagging data, eval=FALSE}
+
+
+my.df$correct_elev_m <- as.numeric(my.df$correct_elev_m),
+my.df$depth_cm <- as.numeric(my.df$depth_cm),
+my.df$crms_site <- factor(my.df$crms_site, levels = c("345", "311", "369")),
+my.df$month <- ifelse(lubridate::month(my.df$date) == 4, "April", "September"),
+my.df$frag <- factor(toupper(my.df$frag), levels = c("L","M","H")))
+
+my.df <- my.df[,my.df$month == 'April]
+
+```
+
+2. New workflow using dplyr
+
+The same work done, but less my.df$, and none of this: my.df[,6:11] etc.
+
+```{r clean tagging data, eval = FALSE}
+my.df <- my.df %>% mutate(
+  correct_elev_m = as.numeric(correct_elev_m),
+  depth_cm       = as.numeric(depth_cm),
+  crms_site      = factor(crms_site, levels = c("345", "311", "369")),
+  month          = ifelse(lubridate::month(date) == 4, "April", "September"),
+  frag           = factor(toupper(frag), levels = c("L","M","H"))) %>% 
+  filter(month == "April") 
+```
+
+3. Basic examples using starwars data
+
+```{r starrwars, message = FALSE}
+starwars %>% 
+  filter(species == "Droid")
+  
+  
+starwars %>% 
+  select(name, ends_with("color"))
+  
+  
+starwars %>% 
+  mutate(name, bmi = mass / ((height / 100)  ^ 2)) %>%
+  select(name:mass, bmi)
+  
+starwars %>% 
+  arrange(desc(mass))
+  
+starwars %>%
+  group_by(species) %>%
+  summarise(n = n(),
+            mass = mean(mass, na.rm = TRUE)) %>%
+  filter(n > 1)
+```
+
+
+A big thing to keep in mind is that dplyr is not going to change your data unless you ask it to through assignment. It also is going to do the least amount of work possible, showing you only the first ten rows of the results to aid in processing speed. So to save any changes you've made or look at everything you'll want to assign them to something or use view().
+
+
+## 7. purrr
+
+purrr enhances R's functional programming (FP) toolkit by providing a complete and consistent set of tools for working with functions and vectors. If you've never heard of FP before, the best place to start is the family of map() functions which allow you to replace many for loops with code that is both more succinct and easier to read. 
+
+
+The following example uses purrr to solve a fairly realistic problem: split a data frame into pieces, fit a model to each piece, compute the summary, then extract the R2.
+
+
+```{r purrrr1, message=FALSE}
+mtcars %>%
+  split(.$cyl) %>% # from base R
+  map(~ lm(mpg ~ wt, data = .)) %>%
+  map(summary) %>%
+  map_dbl("r.squared")
+```
+
+###### What just happened?
+
+1. mtcars was piped in, so each function after will be using some or all of that data
+
+2. split(.$cyl) - splits the mtcars data into subsets based on the values in the column "cyl". the '.' in the function is a stand in for mtcars
+
+3. map() is used to apply the linear model to each cyllinder subset
+
+4. map() then applies the summary function to each
+
+5. map_dbl() then returns the "r.squared" values from those summaries
+
+## 8. ggplot2
+
+ggplot2 is a system for declaratively creating graphics, based on The Grammar of Graphics. You provide the data, tell ggplot2 how to map variables to aesthetics, what graphical primitives to use, and it takes care of the details.
+
+The basic idea is that you start with the ggplot() function, and supply a data source and the aesthetic mapping for it, i.e. tell it where things should go and how they should look
+
+> ggplot(my.dataframe, aes(x = variable1, y = variable2))
+
+Then you use 'geoms' to let it know how you want your data visuallized.
+
+geom_point() - scatterplot
+geom_histogram() - histogram
+geom_density() - frequency curve
+geom_line() - connects points in a line
+geom_polygon() - plots a polygon
+etc.
+
+Here are two basic examples using ggplot's diamonds dataset:
+```{r ggplot 1, message = FALSE}
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, colour = cut))
+
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = clarity), position = "dodge")
+```
+
+I won't spend any more time on this because it is the topic of another training series course, that you all should attend.
+
+If you found this helpful here are some resources you should check out:
+
+> https://www.tidyverse.org/
+
+> http://r4ds.had.co.nz/index.html
+
+> http://adv-r.had.co.nz/
+
+> https://livebook.datascienceheroes.com/
+
+> https://www.sharpsightlabs.com/
+
+
+
+
+
+
+
+

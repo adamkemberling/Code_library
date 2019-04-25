@@ -1,0 +1,206 @@
+---
+title: "Marmap Demo"
+author: "Adam A. Kemberling"
+date: "2/8/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Marmap Package Deom
+
+Lets see what this marine mapping package can do:
+
+```{r}
+library(marmap)
+```
+
+# From [Molecular Ecologist](http://www.molecularecologist.com/2015/07/marmap/)
+
+Basic workflow:
+
+ * Get bathymetry data from NOAA servers     
+ * Create color pallettes that don't suck
+ * Plot
+
+```{r}
+# Load package
+library(marmap)
+
+
+#  Fetch data on NOAA servers and write on disk
+bat <- getNOAA.bathy(-20, 0, 40, 60, res = 4, keep=TRUE)
+
+
+
+# Create nice looking color palettes
+blues <- c("lightsteelblue4", "lightsteelblue3", "lightsteelblue2", "lightsteelblue1")
+greys <- c(grey(0.6), grey(0.93), grey(0.99))
+
+
+
+# Plot
+plot(bat, image = TRUE, land = TRUE, lwd = 0.1, bpal = list(c(0, max(bat), greys), c(min(bat), 0, blues)))
+plot(bat, lwd = 0.8, deep = 0, shallow = 0, step = 0, add = TRUE) # highlight coastline
+```
+
+## Spatial Analysis Features
+
+Here, they used the existing R package gdistance (van Etten 2011) to develop an easy-to-use function with sensible defaults for marine ecologists. As an illustration, Viricel (2012) used least cost paths to infer the connectivity of spotted dolphins (Stenella frontalis) in the Gulf of Mexico. This species almost exclusively uses habitats located above the continental shelf and are virtually never found in waters deeper than 300m. Thus, these animals cannot cross the Gulf of Mexico from West to East along a straight line. To estimate potential gene flow (or lack thereof) between populations, computing accurate geographic distances between individuals must take into account the fact that individuals are restricted to the continental shelf when moving/migrating. The script used in the paper was similar to the following:
+
+
+```{r}
+# Import bathymetry
+bat <- getNOAA.bathy(-100, -80, 22, 31, res = 1, keep = TRUE)
+
+# Load location of individuals (these are NOT from Viricel 2012)
+loc <- data.frame( x = c(-96.92707, -96.60861, -96.86875, -96.14351, -92.82518, -90.86053, -90.14208, -84.64081, -83.81274, -81.13277, -80.33498, -88.52732, -94.46049), y = c(25.38657, 25.90644, 26.57339, 27.63348, 29.03572, 28.16380, 28.21235, 26.71302, 25.12554, 24.50031, 24.89052, 30.16034, 29.34550) )
+
+# Compute least cost paths between -5m and -300m. 
+# Beware! Computation takes time with high resolution bathymetries!
+tr <- trans.mat(bat, min.depth = -5, max.depth = -300)
+cost <- lc.dist(tr, loc, res="path")
+
+# Plot map with isobaths every 1000m
+plot(bat, image = TRUE, land = TRUE, deep=-4000, shallow=-1000, step=1000, drawlabels = FALSE, bpal = list(c(min(bat,na.rm=TRUE), 0, blues), c(0, max(bat, na.rm=TRUE), greys)), lwd = 0.1)
+
+# Add -300m isobath
+plot(bat, deep = -300, shallow = -300, step = 0, lwd = 0.5, add = TRUE, drawlabels = TRUE)
+
+# Add coastline
+plot(bat, deep = 0, shallow = 0, step = 0, lwd = 1, add = TRUE)
+
+# Add least cost paths and the position of individuals
+dummy <- lapply(cost, lines, col = col2alpha("orange", 0.5), lwd = 0.8, lty = 1) 
+points(loc, bg = "orange", cex = 0.8, pch = 21)
+```
+
+### Ggplot2 Support
+
+```{r}
+library(ggplot2)
+
+# Load North West Atlantic dataset
+data(nw.atlantic)
+atl <- as.bathy(nw.atlantic)
+
+# Plot with ggplot2
+autoplot(atl, geom=c("raster", "contour"), colour="white", size=0.1) + 
+  scale_fill_gradient2(low="dodgerblue4", mid="gainsboro", high="darkgreen")
+```
+
+
+### Buffer Areas
+
+```{r}
+# load and plot a bathymetry
+data(florida)
+plot(florida, lwd = 0.2)
+plot(florida, n = 1, lwd = 0.7, add = TRUE)
+
+# Create a point and a buffer around this point
+loc <- data.frame(-80, 26)
+buf <- create.buffer(florida, loc, radius=1.8)
+
+# Get the surface within the buffer for several depth slices
+surf1 <- get.area(buf, level.inf=-200, level.sup=-1)
+surf2 <- get.area(buf, level.inf=-800, level.sup=-200)
+surf3 <- get.area(buf, level.inf=-3000, level.sup=-800)
+
+s1 <- round(surf1$Square.Km)
+s2 <- round(surf2$Square.Km)
+s3 <- round(surf3$Square.Km)
+
+# Add buffer elements on the plot
+col.surf1 <- rgb(0.7, 0.7, 0.3, 0.3)
+col.surf2 <- rgb(0, 0.7, 0.3, 0.3)
+col.surf3 <- rgb(0.7, 0, 0, 0.3)
+
+plotArea(surf1, col = col.surf1)
+plotArea(surf2, col = col.surf2)
+plotArea(surf3, col = col.surf3)
+plot(outline.buffer(buf), add = TRUE, lwd = 0.7)
+points(loc, pch = 19, col = "red")
+
+## Add legend
+legend("topleft", fill = c(col.surf1, col.surf2, col.surf3),
+       legend = c(paste("]-200 ; -1] -",s1,"km2"),
+                  paste("]-800 ; -200] -",s2,"km2"),
+                  paste("]-3000 ; -800] -",s3,"km2")))
+```
+
+
+
+
+### Tracking movement and depth using gps coordinates
+
+```{r, eval = FALSE}
+head(track1)
+
+head(track2)
+
+# Download bathymetric data and save on disk
+bat <- getNOAA.bathy(174, 176, -37, -35, res = 1, keep = TRUE)
+
+# Get depth profile along both tracks and remove positive depths (since random fake values can be on land)
+# path.profile() gets depth value for all cells of the bathymetric grid below the gps tracks
+path1 <- path.profile(track1[,-3], bat) ; path1 <- path1[-path1[,4]>0,]
+path2 <- path.profile(track2[,-3], bat) ; path2 <- path2[-path2[,4]>0,]
+
+# Get depth values for each gps tracking point
+# get.depth() retrieve depth values only for gps tracking points
+depth1 <- get.depth(bat, track1$lon, track1$lat, locator = FALSE, distance = TRUE) ; 
+depth2 <- get.depth(bat, track2$lon, track2$lat, locator = FALSE, distance = TRUE) ; 
+
+# Add depth values to tracks 1 and 2 and remove positive depths
+track1$depth <- depth1$depth ; track1 <- track1[-track1$depth > 0,]
+track2$depth <- depth2$depth ; track2 <- track2[-track2$depth > 0,]
+
+# Plot
+layout(matrix(c(1, 2, 1, 3, 4, 4), ncol = 2, byrow = TRUE), height = c(1, 1, 1))
+
+## Bathymetric map with gps tracks
+plot(bat, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(bat,na.rm=TRUE), 0, blues), c(0, max(bat, na.rm=TRUE), greys)), ylim=c(-36.5,-35.25))
+plot(bat, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
+lines(track1, col = "brown3")
+lines(track2, col = "darkorange1")
+legend("topright", legend = c("Track 1", "Track 2"), lwd = 1, col = c("brown3", "darkorange1"), pch = 1, pt.cex = 0.5, bg="white")
+
+## Depths profiles along gps tracks
+plotProfile(path1, main = "Track 1")
+plotProfile(path2, main = "Track 2")
+
+## Depth as a function of time since the deployment of gps tags
+par(mar=c(5,4,1,2))
+plot(track1$time, track1$depth, xlab = "Time (arbitrary unit)", ylab = "Depth (m)", type = "o", cex = 0.5, col = "brown3", xlim = range(c(track1$time, track2$time)), ylim = range(c(track1$depth, track2$depth)))
+lines(track2$time, track2$depth, type = "o", cex = 0.5, col = "darkorange1")
+legend("bottomright", legend = c("Track 1", "Track 2"), lwd = 1, col = c("brown3", "darkorange1"), pch = 1, pt.cex = 0.5)
+```
+
+
+
+
+
+# From the Vignette
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

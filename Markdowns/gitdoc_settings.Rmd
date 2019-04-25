@@ -1,0 +1,32 @@
+---
+title: "github doc layout"
+author: "Adam A. Kemberling"
+date: "1/14/2019"
+output:
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Github_document setup
+
+This is a document created to save the YAML settings for github documents
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

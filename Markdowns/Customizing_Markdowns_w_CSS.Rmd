@@ -1,0 +1,130 @@
+---
+title: "Customizing Rmarkdowns with CSS & <br/> Directly Adding HTML"
+author: "Adam A. Kemberling"
+date: "4/23/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    code_folding: "show"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+<style>
+/* Set font color for document */
+
+p {color: #575757;}
+</style>
+
+# Adding css directly into your rmarkdown document
+
+CSS or html can be added directly into your rmarkdown using code chunks and the `HTML()` function in the `htmltools` package. The code chunk below is html code used to change the style of div containers of the class ".header_1_class" by changing the background color to light blue, the border radius to 5 pixels, and the padding to 20 pixels. It also changes the background color of containers with the ID of "#header_1_id".  The class is ".header_1_class" because I named it that, you can name the class whatever you want, but it is easier to keep track of the classes if their names are meaningful. The css has to reference an object in your html document to do anything.
+
+Alternatively you can put the exact same code in your stylesheet, and then just label your sections correctly in the rmarkdown file to have the same effect.
+
+```{r}
+htmltools::HTML(
+  '
+<style>
+
+/* Set A Style for a Specific Class */
+.header_1_class { background-color:#e6f0ff; 
+                  border-radius: 5px; 
+                  padding: 20px;}
+                  
+/* Set A Style for a Specific ID */
+#header_1_id { background-color: #ACACAC;}
+</style>
+'
+)
+```
+
+
+The below sections will have style applied to them because the headers have been given ID and class labels "#header_1_id" & ".header_1_class", which I set with `#  Identifying sections by their ID {#header_1_id}` & `# Identifying Sections by their class {.header_1_class}`
+
+
+# Identifying sections by their ID {#header_1_id}
+
+This section is identified in the above code chunk by 
+
+ * **id =  "#header_1_id"**, and for that reason the whole section has a gray background.
+
+
+# Identifying Sections by their class {.header_1_class}
+
+This section should is identifiable in the above css statement by:
+
+ * **class = .header_1_class**
+ 
+ You could also out the style details in a stylesheet, and identify these sections the same way.
+ 
+
+
+# Extending use of the HTML function
+
+If you are already familiar with html you can add whatever html you want directly using this method. This is great if you just want to copy another pages layout or parts of it. 
+
+For example, you could add a table (or any other element you find on a web page) the hard way if you wanted to by adding the html code directly:
+
+```{r}
+htmltools::HTML(
+  '
+  <table style="width:100%">
+  <tr>
+    <th>Firstname</th>
+    <th>Lastname</th> 
+    <th>Age</th>
+  </tr>
+  <tr>
+    <td>Jill</td>
+    <td>Smith</td> 
+    <td>50</td>
+  </tr>
+  <tr>
+    <td>Eve</td>
+    <td>Jackson</td> 
+    <td>94</td>
+  </tr>
+</table>
+
+<br/>
+  '
+)
+```
+
+
+But keep in mind that the purpose of rmarkdown is to get you there without learning html, and there is almost always a way to do that in R language.
+
+More (pretty much anything you could want to know) about html and css can be found for free at [w3schools.com]("https://www.w3schools.com/html/html_intro.asp")
+ 
+ 
+# Adding html raw into to text
+
+Can you just skip the HTML() function and paste right in?
+
+<table style="width:100%">
+  <tr>
+    <th>Firstname</th>
+    <th>Lastname</th> 
+    <th>Age</th>
+  </tr>
+  <tr>
+    <td>Jill</td>
+    <td>Smith</td> 
+    <td>50</td>
+  </tr>
+  <tr>
+    <td>Eve</td>
+    <td>Jackson</td> 
+    <td>94</td>
+  </tr>
+</table>
+
+<br/>
+
+Yea you totally can...
+weak.

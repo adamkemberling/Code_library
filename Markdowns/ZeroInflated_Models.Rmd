@@ -1,0 +1,406 @@
+---
+title: "Zero-inflated Count Regression Methods"
+author: "Adam A. Kemberling"
+date: "2/5/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(broom)
+```
+
+## Zero inflation with Count Data
+
+Its very common when working with count data for there to be a rather large proportion of zeros in the data. When this occurs, the
+
+```{r}
+
+```
+
+
+
+## Generalized Linear Models (GLM's)
+
+Generalized linear models are simply a framework for regression models that allows for the specification of error distributions and link functions other than the normal (gaussian) error distribution most people are familiar with. The "standard" linear regression can itself be expressed as a generalized linear model.
+
+Default linear regression in r.
+
+```{r}
+#make model with lm()
+lin_reg <- lm(mpg ~ hp,
+              data = mtcars)
+#plot the raw data
+plot(mpg ~ hp, 
+     data = mtcars,
+     main = "Linear Regression")
+
+#add the fit using abline
+abline(lm(mpg ~ hp,
+          data = mtcars))
+```
+
+The same model written more explicitly as a GLM
+
+```{r}
+glm_1 <- glm(mpg ~ hp,
+             data = mtcars,
+             family = gaussian(link = "identity"))
+
+#plot the raw data
+plot(mpg ~ hp, 
+     data = mtcars,
+     main = "Gaussian GLM")
+
+#add the fit using abline
+abline(glm(mpg ~ hp,
+             data = mtcars,
+             family = gaussian(link = "identity"))
+)
+```
+
+
+When we perform a linear regression we are implicitly performing a linear model with the gaussian error distribution, using an identity link function. In this sense the linear regressions most of us are familiar with can be expressed more explicitly as generalized linear models.
+
+
+## Distributions
+
+As mentioned above, the GLM framework lets you extend your modeling to use different error distributions than the normal or gaussian distribution. This is particularly useful when working with data that does not meet the assumptions of normality, or for working with discrete data like counts where the values must fall on integers, and for situations where you can't have negative values as a response.
+
+Different probability distributions have different properties which let you model more specifically to the data you have collected.
+
+### The Poisson Distribution
+
+The poisson distirbution is useful for discrete integer data and is where you would likely start with a glm for count data. What is special about the poisson distribution is that its mean and variance are equal and it is strictly non-negative. For small mean values the distribution hugs 0, so if the mean of your data is near zero it can handle a fair bit of zero inflation in your count data. 
+
+
+
+```{r}
+#Gonna make some data (taken from Zuur 2016)
+#dpois() generates data from the poisson distribution
+x.3 <- 0:20
+y.3 <- dpois(x.3,lambda = 3)
+     
+x.10 <- 0:20
+y.10 <- dpois(x.10, lambda = 10)
+    
+x.100 <- 0:200
+y.100 <- dpois(x.100,lambda = 100)     
+     
+X <- c(x.3, x.10, x.100)
+Y <- c(y.3, y.10, y.100)
+ID <- rep(c("mean = 3", "mean = 10", "mean = 100"), 
+          c(length(x.3), length(x.10), length(x.100)))
+ID <- factor(ID, levels = c("mean = 3", "mean = 10", "mean = 100"))
+
+MyData <- data.frame(X = X,
+                     Y = Y,
+                     ID = ID)
+
+library(ggplot2)
+p <- ggplot()
+p <- p + geom_segment(data = MyData, 
+                    aes(y = 0, x = X, xend = X, yend = Y))
+p <- p + xlab("Count") + ylab("Probability")
+p <- p + theme(text = element_text(size = 15))
+p <- p + facet_grid(. ~ ID, scales = "free")
+p <- p + theme(strip.text.x = element_text(size=15))
+p  
+```
+
+It starts to fall apart when you have a larger mean from high count events, but also lots of zeros, in which case it is going to fit your data very poorly.
+ 
+ 
+### Negative-Binomial
+
+Negative binomial or neg-bin regressions are helpful for situations where there is greater overdispersion in your count data than can be modeled with a poisson distribution. The negative binomial regression is more mathematically intimidating, and is better for situations where you have lots of zeros and the count values flucuate over a wider range.
+
+
+There is a parameter `k` in negative binomial distributions which helps explain the extra variation in the model and which represents the probability of "successes" or probability that the response > 0. When k is large relative to the mean $\mu$ the distribution converges to the poisson (bottom 3 panels). When k is small relative to the mean the distribution allows for a lot of zeros (top three panels)
+
+```{r}
+
+library(stats)
+x.3   <- 0:10
+x.10  <- 0:20
+x.100 <- 0:200
+k <- c(0.1, 1, 1000)
+
+Y <- NULL
+X <- NULL
+ID <- NULL
+Ks <- NULL
+for (i in 1:3){ 
+   Y.3   <- dnbinom(x.3,  mu=3,size = k[i])
+   Y.10  <- dnbinom(x.10, mu=10,size = k[i])
+   Y.100 <- dnbinom(x.100,mu=100,size = k[i])
+   ID123 <- rep(c("mean = 3", "mean = 10", "mean = 100"),
+                c(length(x.3), length(x.10), length(x.100)))
+   AllK <- rep(k[i], length(ID123))
+   
+   Y <- c(Y, Y.3, Y.10, Y.100)
+   X <- c(X, x.3, x.10, x.100)
+   ID <- c(ID,ID123)
+   Ks  <- c(Ks,AllK)
+	}
+ID <- factor(ID, levels = c("mean = 3", "mean = 10", "mean = 100"))
+Ks <- factor(Ks, levels = c("0.1", "1", "1000"),
+              labels = c("k = 0.1", "k = 1", "k = 1000"))
+
+
+MyData <- data.frame(X = X,
+                     Y = Y,
+                     ID = ID,
+                     Ks = Ks)
+
+p <- ggplot()
+p <- p + geom_segment(data = MyData, 
+                    aes(y = 0, x = X, xend = X, yend = Y))
+p <- p + xlab("Count") + ylab("Probability")
+p <- p + theme(text = element_text(size = 15))
+p <- p + facet_grid(Ks ~ ID, scales = "free")
+p <- p + theme(strip.text.y = element_text(size=15, angle=0))
+p <- p + theme(strip.text.x = element_text(size=15))
+p  
+
+```
+
+### Modelling with Poisson or NB distributions.
+
+Both the poisson and negative binomial distributions are added to any `glm()` model call by changing the `family = ` arguments.
+
+A **poisson** glm will look something like this :
+
+```{r, eval = FALSE}
+#The model
+pois_mod <- glm(response ~ predictor1 + predictor2,
+                data = mydata,
+                family = poisson(link = log))
+
+#And the results
+summary(pois_mod)
+
+
+#Or more neatly
+library(broom)
+tidy(pois_mod)
+
+```
+
+
+A **Negative Binomial** glm will look something like this:
+```{r, eval = FALSE}
+library(MASS)
+
+#The model
+negbin_mod <- glm.nb(response ~ predictor1 +predictor2,
+                  data = mydata,
+                  link = "log")
+
+#The results
+summary(negbin_mod)
+
+#Or
+tidy(negbin_mod)
+```
+
+### Making Predictions and Plotting
+
+There are a lot of different ways to do this part, so here are a handful of examples for demonstration.
+
+This example is from Zuur 2016, and will walk through simulating data, checking the model and plotting:
+
+For this model they:     
+ * First we simulate data from a Poisson GLM     
+ * Let's assume we have 1 covariate, 100 observations     
+ * and the following values for the intercept and slope. (1 & 2)     
+
+
+
+1. Simulate the data
+```{r}
+
+set.seed(123) #Now we all have the same results.
+
+#Intercept, slope, sample size, covariate:
+beta1 <- 1
+beta2 <- 2
+N     <- 1000
+X1    <- runif(N)
+
+#Predictor function eta and expected values mu
+eta <- beta1 + beta2 * X1
+mu  <- exp(eta)
+
+#Observed counts:
+Y   <- rpois(N, lambda = mu)
+
+
+# Plot the simulated data
+par(mfrow = c(1,1), mar = c(5,5,2,2))
+plot(x = X1,
+     y = Y,
+     xlab = "Covariate X1",
+     ylab = "Response variable Y",
+     cex.lab = 1.5,
+     pch = 16)
+```
+
+2. Fit a poisson model
+
+```{r}
+
+#Fit a Poisson GLM on these data
+M1 <- glm(Y ~ X1, family = poisson)
+summary(M1)
+```
+
+
+Check the model fit by looking at the fitted values and the pearson residuals.
+
+```{r}
+
+par(mfrow = c(1,1), mar = c(5,5,2,2))
+E1 <- resid(M1, type = "pearson")
+plot(x = fitted(M1),
+     y = E1,
+     xlab = "Fitted values",
+     ylab = "Pearson residuals",
+     cex.lab = 1.5)
+abline(h = 0, lty = 2)
+
+```
+Plot fit line with observed values in ggplot2
+
+1. Create artificial covariate values to predict with
+
+2. Convert these into X
+
+3. Calculate the predictor function `eta`, expected values `ExpY`, `SE`, and upper and lower confidence intervals
+```{r}
+
+MyData      <- data.frame(X1 = seq(0, 1, length = 25))
+X           <- model.matrix(~ X1, data = MyData)
+MyData$eta  <- X %*% coef(M1)
+MyData$ExpY <- exp(MyData$eta)
+MyData$SE   <- sqrt(diag(X %*% vcov(M1) %*% t(X)))
+MyData$ub   <- exp(MyData$eta + 1.96 * MyData$SE)
+MyData$lb   <- exp(MyData$eta - 1.96 * MyData$SE)
+
+#Put all relevant variables in a data frame 
+PoissonData1 <- data.frame(Y  = Y,
+                           X1 = X1)
+
+p1 <- ggplot()
+p1 <- p1 + geom_point(data = PoissonData1, 
+                      aes(y = Y, x = X1),
+                      shape = 16, 
+                      size = 2)
+p1 <- p1 + xlab("Covariate X1") + ylab("Response variable Y")
+p1 <- p1 + theme(text = element_text(size = 15))
+p1 <- p1 + geom_line(data = MyData, 
+                   aes(x = X1, y = ExpY), 
+                   colour = I("black"),
+                   lwd = 2)
+
+p1 <- p1 + geom_ribbon(data = MyData, 
+                       aes(x = X1, 
+                           ymax = ub, 
+                           ymin = lb ),
+                       alpha = 0.2)
+
+p1
+```
+
+Another, and probably easier way to do it is to just let ggplot2 do the model for you with the `geom_smooth` function:
+
+```{r}
+#Have your response and predictor in the same dataframe, 
+#yours will likely be like this
+poisson_data <- data.frame(X1, Y)
+
+#use ggplot to plot the raw data and the model in one step
+ 
+ggplot(data = poisson_data, aes(x = X1, y = Y)) + 
+  geom_point(color = "gray60") +
+  geom_smooth(method = "glm",
+              formula = y ~x, #y and x are defined in the ggplot call
+              method.args = list(family = poisson(link = "log")),
+              se = TRUE,
+              color = "black",
+              fill = "blue",
+              lty = 2) +
+  theme_bw()
+```
+
+### Negative Binomial Regression on Shark Data
+
+This example uses shark data included with the Zuur 2016 book "Beginners Guide to Zero-Inflated Models With R"
+
+Load the data, not going to show this code.
+
+```{r, echo = FALSE}
+#Import the data from a tab delimited ascii file
+Sharks <- read.table(file = "C:/Local_work/INLA/zuur_zim/SharksGBRMP.txt", 
+                     header = TRUE, 
+                     dec = ".")
+
+
+```
+
+Make a model
+
+```{r}
+library(MASS)
+Sharks$LogSoakTime <- log(Sharks$SoakTime)
+
+M1 <- glm.nb(TGS ~ DistReef + HardCoral + Zoning + LogSoakTime,
+          data = Sharks,
+          link = "log")
+
+#get results
+summary(M1)
+tidy(M1)
+```
+
+Plotting **single** predictor glm.nb models can be done as we did above using `geom_smooth`
+
+```{r}
+ggplot(data = Sharks, aes(x = LogSoakTime, y = TGS)) + 
+  geom_point(color = "gray60") + 
+  geom_smooth(method = "glm.nb",
+              formula = y ~ x,
+              method.args = list(link = "log")) +
+  ylab("Tiger Shark Counts")
+```
+
+Plotting with multiple predictors can be tricky as 2 predictors create a 2d surface, and 3 predictors and beyond create multi-dimensional surfaces which can be difficult to visualize. 
+
+One solution to this is to extract the estimated marginal means for plotting. What this does, is for a given predictor, the other covariates in the model will be held constant at their mean values as you predict across the range of observed values for the variable of interest. One specific use case is when looking at a time series, and you want a predicted values for each year regardless of the other variables, but while still incorporating them into the model.
+
+To extract and plot estimated marginal means you can use the `emmeans` package and/or use the `ggeffects` package.
+
+
+So In this example I'm interested in the Zoning variable which is a factor.
+
+```{r}
+library(emmeans)
+
+#Use emmeans() to extract the information we want, using type = "response" to get it on response scale
+emmean_zoning <- as.data.frame(summary(emmeans(M1, "Zoning", by = c("Zoning")), type = "response"))
+
+#use ggplot to plot it
+ggplot(emmean_zoning, aes(x = Zoning, y = response)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL))
+```
+
+Or we can use the `ggeffects` package to tease out the differences:
+I haven't really used it but here is an r-bloggers article about it [here](https://www.r-bloggers.com/ggeffects-0-8-0-now-on-cran-marginal-effects-for-regression-models-rstats/)
+
+ggeffects has extensions for mixed models, so if you have repeated measures or any random effects I would suggest looking here for more information.
+

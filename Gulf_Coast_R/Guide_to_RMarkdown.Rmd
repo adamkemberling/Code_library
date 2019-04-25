@@ -1,0 +1,329 @@
+---
+title: "Rmarkdown Guide"
+author: "Adam A. Kemberling"
+date: "12/17/2018"
+output: 
+  html_document:
+    theme: yeti
+    toc: true
+    toc_float: true
+    code_folding: "show"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, comment = NA)
+```
+
+
+# **The Basics of RMarkdown**
+
+R Markdown is a tool built into R and Rstudio that allows users to create documents/dashboards/reports with embedded r code and outputs directly in the RStudio IDE. To begin using Rmarkdown you will need to install the`"rmarkdown"` package.
+
+Rmarkdown is incredibly useful for creating reports for analyses, or for communicating with colleagues in situations where you wish to combine text and statistical outputs or maps in a single document, and without the need for copying or pasting onto other software platforms. It is also useful for situations where you want to share both the code and the output as it would appear in Rstudio.   
+
+
+R Markdown was designed for easier reproducibility, since both code and narratives are in the same document, with outputs derived from the source code. This R Markdown document will be covering the basic steps for creating an R Markdown document, with short demonstrations on some of its most useful/common functionalities. Much of the material here can be found online and in much greater detail [here at R Markdown: The Definitive Guide](https://bookdown.org/yihui/rmarkdown/) with helpful shortcuts for the Markdown syntax found on this [cheatsheet](https://www.rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf). Another good resources is [Pimp my Rmarkdown](https://holtzy.github.io/Pimp-my-rmd/), a blog covering different topics on how to improve your reports.
+
+For creating dashboards in rmarkdown I would recommend [flexdashboards](https://rmarkdown.rstudio.com/flexdashboard/) and for creating remark.js presentations I would also recommend the [xaringan package](https://slides.yihui.name/xaringan/).
+
+### Tables
+
+Tables or dataframes can be displayed in their tabular form by either printing a dataframe that is in the R environmnet, or by using one of several packages for creating customizable tables like the `kable()` function in the `knitr` package or the `DT` package for accessing the [data.tables library](https://rstudio.github.io/DT/)
+
+```{r}
+
+library(knitr)
+kable(head(mtcars))
+```
+
+### Graphs
+Any graphical outputs from evaluated code chunks will appear in-line as they appear in the document. When outputting to an HTML document it is possible to include interactive plots like those available from the `plotly` package.
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(plotly)
+
+p <- ggplot(mtcars, aes(x = hp, y = mpg)) + 
+  geom_point(aes(color = factor(cyl))) + 
+  geom_smooth(aes(color = factor(cyl)), 
+              method = "lm", se = FALSE)
+ggplotly(p)
+```
+
+### Formulas
+In line formulas are written between single dollar $(\$)$ signs. Done this way the "von Bert" formula $l_t = L_{\infty}(1-e^{-K(t-t_0)})$ will appear beside normal text. The formula notation in R Markdown follows LaTeX notation which makes adding special symbols as simple as looking them up [here](https://en.wikipedia.org/wiki/Wikipedia:LaTeX_symbols)    
+
+Formulas can also be displayed out of text by bracketing with double dollar $(\$\$)$ signs : $$l_t = L_\infty(1-e^{-K(t-t_0)}) $$   
+
+You can also use math environments inside these closures to allow for matrix notation e.g.,
+$$\begin{array}{ccc}
+x_{11} & x_{12} & x_{13}\\
+x_{21} & x_{22} & x_{23}
+\end{array}$$
+
+
+### Maps
+If the selected output type for your rmarkdown document is HTML (the default option), it will be possible to include interactive displays like zoomable maps/plots and searchable tables in your document.
+
+```{r}
+library(leaflet)
+
+m <- leaflet() %>% 
+  addTiles() %>% # Add default OpenStreetMap map tiles
+  setView(-88.943634, 30.441863, zoom = 16) %>% 
+  addMarkers(lng = -88.943634, lat = 30.441863,
+    popup="Oh look, Its us!")
+m
+  
+```
+
+
+## Installation
+
+Assuming that both R and Rstudio have been installed, users only need to install the "Rmarkdown" package from CRAN to begin creating html/word documents. In order to create pdf documents directly from Rstudio using R Markdown, users will need to install a distribution of LaTeX.  
+
+A full installation of LaTeX is rather large, and the authors of R Markdown and myself would strongly suggest installing tinytex as an alternative.
+
+
+```{r, eval = F}
+# Install from CRAN
+install.packages('rmarkdown')
+
+install.packages("tinytex")
+tinytex::install_tinytex()  # install TinyTeX
+
+```
+
+
+# **Creating an R Markdown File**
+
+Files can be created in RStudio by navigating to the    
+file tab --> New file --> R Markdown
+
+You will then be prompted to add a title and name an author before finally selecting an output type.
+
+
+## Structure of an R Markdown Document
+
+Most R Markdown documents are composed of three parts:
+
+ 1. The YAML metadata found at the top of the document
+ 2. The body, composed of text, divided by headers
+ 3. Code blocks, these can be run to provide processed results, and/or shown as static text
+ 
+ 
+
+### 1. YAML Metadata (YAML Ain't Markup Language)
+
+The beginning of each markdown document will contain several lines of pre-formatted text upon creation. For example :     
+
+#### YAML metadata for this document
+```{r, eval = FALSE}
+---
+title: "Rmarkdown Guide"
+author: "Adam A. Kemberling"
+date: "12/17/2018"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+````
+
+
+This chunk of text formats the output of the document and is where you would make changes to add/remove features like a table of contents or change from an html document to a word or pdf document.
+
+Indentation **is** important in this section of the document, so be sure when you are trying to match code online that you pay attention to the details.
+
+
+#### Flexdashboard YAML metadata
+```{r, eval = FALSE}
+---
+title: "Multiple Columns"
+output: flexdashboard::flex_dashboard
+---
+    
+Column {data-width=600}
+-------------------------------------
+    
+### Chart 1
+
+  ## R code for Chart 1          
+#```{r}
+#
+#```
+   
+Column {data-width=400}
+-------------------------------------
+   
+### Chart 2
+
+## R code for Chart 2        
+#```{r}
+#
+#```   
+ 
+### Chart 3
+
+## R code for Chart 3      
+#```{r}
+#
+#```
+
+```
+
+
+YAML metadata can be fully customized using css or html notation, however it is usually much easier to find a theme that you like and use their pre-packaged styles.
+
+
+### 2. Text Body
+
+Plain text entered into the document will appear (for the most part) as is text in the document. Text entered outside of codeblocks can be changed using Pandoc's Markdown syntax. This is what allows you to create things like headers, lists, and italic or bold font changes.
+
+
+#### Markdown Syntax
+
+
+
+Examples of how the markdown syntax works:
+
+ * "#" will create a level 1 header, and by increasing the number of "#"'s you will get progressively smaller headers that will nest in the TOC.     
+ * **bold** font is achieved by surrounding text with asterisks, e.g. `**text**`
+ * *italics* are done similarly with a single astrisk `*text*`
+
+A full set of syntax options can be found [here](https://www.rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf)
+
+### 3. Code blocks
+
+R Code blocks are created by typing: "```{r}", and they are closed by typing three more backticks like the ones at the start of the code block. R Markdown supports the use of other programming language evaluation, so it is important to designate what language is being used within the curly brackets at the start of the codeblock.
+
+
+There are also a number of options that can be included within that enclosure that will change how the output of code is displayed  
+
+ * echo = TRUE/FALSE will set whether the source code is printed in the document, or if only the outputs are displayed
+ * warning = TRUE/FALSE will allow for warning messages to be printed or suppressed in the documents
+ * message = TRUE/FALSE will turn on/off messages about package conflicts or updates and similar r feedback
+ 
+ This is also where you would set figure width options for any plots in your code block.
+
+#### In-line code evaluation for making templates, pulling results directly
+
+In the event that you are making a template, and wish to set keywords or macrovariables that will populate themselves in the text, you will set them as you normally do within code blocks using `keyword <- "whatever you want to paste` then to have code evaluated within text you use a single backtick " ` " followed by "r" and close the inline codeblock with another backtick. This is also useful when you want to pull model results directly into the text using the coefficients function coef(), 
+
+ex. `coef(mymodel)[1]`
+
+
+# **Combining Markdown Elements into a Formatted Doc using Knit**
+
+The way R and R markdown convert the three elements of a markdown document into a single document/report is done in two steps:
+
+ 1. First the contents of your file are converted to a single markdown ".md" file using the package knitr and according to the metadata set at the top of the document
+ 2. Next that document is processed by pandoc into whatever the final desired format is. Pandoc is now bundled with Rstudio, so there is no need to install it separately.
+ 
+These two steps are performed automatically and behind the scenes by clicking the knit button at the top of your .Rmd file in Rstudio, it is the icon that resembles a ball of yarn. Once knit your new file will appear in the current working directory.
+
+
+## Adding HTML/CSS directly into your rmarkdown document
+
+CSS or html can be added directly into your rmarkdown using code chunks and the `HTML()` function in the `htmltools` package. The code chunk below is html code used to change the style of div containers of the class ".header_1_class" by changing the background color to light blue, the border radius to 5 pixels, and the padding to 20 pixels. It also changes the background color of containers with the ID of "#header_1_id".  The class is ".header_1_class" because I named it that, you can name the class whatever you want, but it is easier to keep track of the classes if their names are meaningful. The css has to reference an object in your html document to do anything.
+
+Alternatively you can put the exact same code in your stylesheet, and then just label your sections correctly in the rmarkdown file to have the same effect. It may be preferable to enter any "code" within a code chunk for the visual distinction when writing your .Rmnd files.
+
+```{r}
+htmltools::HTML(
+  '
+<style>
+
+/* Set A Style for a Specific Class */
+.header_1_class { background-color:#e6f0ff; 
+                  border-radius: 5px; 
+                  padding: 20px;}
+                  
+/* Set A Style for a Specific ID */
+#header_1_id { background-color: #ACACAC;}
+</style>
+'
+)
+```
+
+
+The below sections will have style applied to them because the headers have been given ID and class labels "#header_1_id" & ".header_1_class", which I set with `#  Identifying sections by their ID {#header_1_id}` & `# Identifying Sections by their class {.header_1_class}`
+
+
+#### Identifying sections by their ID {#header_1_id}
+
+This section is identified in the above code chunk by its ID
+
+ * **"{#header_1_id}"**, and for that reason the whole section has a gray background
+
+
+#### Identifying Sections by their class {.header_1_class}
+
+This section should is identifiable in the above css statement by its class
+
+ * **"{.header_1_class}"**
+ 
+ You could also out the style details in a stylesheet, and identify these sections the same way.
+ 
+
+
+#### Extend Customization with HTML
+
+If you are already familiar with html you can add whatever html you want directly using this method. This is great if you just want to copy another pages layout or parts of it. 
+
+For example, you could add a table (or any other element you find on a web page) the hard way if you wanted to by adding the html code directly:
+
+```{r}
+htmltools::HTML(
+  '
+  <table style="width:100%">
+  <tr>
+    <th>Firstname</th>
+    <th>Lastname</th> 
+    <th>Age</th>
+  </tr>
+  <tr>
+    <td>Jill</td>
+    <td>Smith</td> 
+    <td>50</td>
+  </tr>
+  <tr>
+    <td>Eve</td>
+    <td>Jackson</td> 
+    <td>94</td>
+  </tr>
+</table>
+
+<br/>
+  '
+)
+```
+
+
+But keep in mind that the purpose of rmarkdown is to get you there without learning html, and there is almost always a way to do that in R language.
+
+More (pretty much anything you could want to know) about html and css can be found for free at [w3schools.com]("https://www.w3schools.com/html/html_intro.asp")
+ 
+ 
+### Adding html raw into the text
+
+HTML can also be added directly into the body of the document, as well.
+
+<table style="width:100%">
+  <tr>
+    <th>Firstname</th>
+    <th>Lastname</th> 
+    <th>Age</th>
+  </tr>
+  <tr>
+    <td>Jill</td>
+    <td>Smith</td> 
+    <td>50</td>
+  </tr>
+  <tr>
+    <td>Eve</td>
+    <td>Jackson</td> 
+    <td>94</td>
+  </tr>
+</table>
+
+<br/>
